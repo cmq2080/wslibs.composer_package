@@ -1,0 +1,109 @@
+<html>
+<head>
+    <title>版本管理</title>
+    <style></style>
+    <script src="https://libs.baidu.com/jquery/2.1.4/jquery.min.js"></script>
+    <script src="http://res.cmq2080.top/index.php?dir=js/vue-2.6.12.min.js"></script>
+    <script>
+        $(function () {
+            var vue = new Vue({
+                el: "#project_h",
+                data: {
+                    project_groups: []
+                },
+                methods: {
+                    getJson: function (projectName, versionName) {
+                        $.ajax({
+                            type: "GET",
+                            url: "{url index\\\\project getPackageJson}&__addons={$addons}",
+                            dataType: "text",
+                            async: false,
+                            data: {
+                                "project": projectName,
+                                "version": versionName
+                            },
+                            success: function (res) {
+                                alert(res)
+                            },
+                            error: function (e) {
+                            }
+                        });
+                    },
+                    addVersion: function (projectId) {
+                        window.open("?app=index\\version@add&__addons={$addons}&project_id="+projectId, "newwindow");
+                    },
+                    deleteVersion: function (versionId) {
+                        var t = confirm("确定删除？");
+                        if (!t) {
+                            return;
+                        }
+                        $.ajax({
+                            type: "POST",
+                            url: "{url index\\\\version delete}&__addons={$addons}",
+                            dataType: "json",
+                            async: false,
+                            data: {
+                                "id": versionId
+                            },
+                            success: function (res) {
+                                alert(res.msg);
+                                if (res.code == 1) {
+                                    window.location.reload();
+                                }
+                            },
+                            error: function (e) {
+                                console.log(e)
+                            }
+                        });
+                    }
+                }
+            });
+
+            $.ajax({
+                type: "GET",
+                url: "{url index\\\\project getData}&__addons={$addons}",
+                dataType: "json",
+                async: false,
+                success: function (res) {
+                    vue.project_groups = res;
+                },
+                error: function (e) {
+                    console.log(e);
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+<div id="guide">
+    <p>文始征信仓库全局设置指导</p>
+    <p>首先，将公司内部的仓库地址添加到composer配置中。</p>
+    <p style="background: #cccccc;">composer config -g repo.packagist wszx http://public.master.composer.wenshi.wszx.cc/</p>
+    <p>因为公司仓库地址是http的，而composer中的仓库默认为https的，直接用肯定会报错误，没关系，关掉SSL验证就好了。</p>
+    <p style="background: #cccccc;">composer config -g secure-http false</p>
+<!--    <p>最后，更新composer。</p>-->
+<!--    <p style="background: #cccccc;">composer update</p>-->
+</div>
+<div id="project_h">
+    <div class="project_group" v-for="project_group in project_groups">
+        <h2>{{ project_group.project_group_name }}</h2>
+        <div class="project" v-for="project in project_group.projects">
+            <h4>
+                <span>{{ project.project_name }}</span>
+                <a :href="project.project_url" target="_blank">跳转</a>
+                <a class='btn btn-outline-info btn-sm btn-dialog' data-title='导入新版本' datarea='30%,50%'
+                   :href="project.add_url" target="_blank">导入新版本</a>
+<!--                <span @click="addVersion(project.id)">导入新版本2</span>-->
+            </h4>
+            <div class="version" v-for="version in project.versions">
+                <div>
+                    <span>{{ version.version_name }}</span>
+                    <a :href="version.version_url">下载</a>
+                    <span style="cursor: pointer" @click="deleteVersion(version.id)">删除</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

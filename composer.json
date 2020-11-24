@@ -1,0 +1,26 @@
+{
+    "name": "wslibs/packages",
+    "description": "composer包管理",
+    "authors": [
+        {
+            "name": "陈庙琴",
+            "email": "1421224516@qq.com"
+        }
+    ],
+    "require": {
+        "epii/admin-center": ">=0.0.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "composer\\packages\\": "./src"
+        }
+    },
+    "extra": {
+        "epii_admin_addons": {
+            "app": "composer\\packages\\App",
+            "title": "composer包管理",
+            "version": "0.0.1",
+            "base_name_space": "composer\\packages\\app"
+        }
+    }
+}
