@@ -2,8 +2,8 @@
 <head>
     <title>版本管理</title>
     <style></style>
-    <script src="http://code.jquery.com/jquery-2.1.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script src="https://libs.baidu.com/jquery/2.1.4/jquery.min.js"></script>
+    <script src="http://res.cmq2080.top/index.php?dir=js/vue-2.6.12.min.js"></script>
     <script>
         $(function () {
             var vue = new Vue({
@@ -75,6 +75,15 @@
     </script>
 </head>
 <body>
+<div id="guide">
+    <p>文始征信仓库全局设置指导</p>
+    <p>首先，将公司内部的仓库地址添加到composer配置中。</p>
+    <p style="background: #cccccc;">composer config -g repo.packagist wszx http://public.master.composer.wenshi.wszx.cc/</p>
+    <p>因为公司仓库地址是http的，而composer中的仓库默认为https的，直接用肯定会报错误，没关系，关掉SSL验证就好了。</p>
+    <p style="background: #cccccc;">composer config -g secure-http false</p>
+<!--    <p>最后，更新composer。</p>-->
+<!--    <p style="background: #cccccc;">composer update</p>-->
+</div>
 <div id="project_h">
     <div class="project_group" v-for="project_group in project_groups">
         <h2>{{ project_group.project_group_name }}</h2>

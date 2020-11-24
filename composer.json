@@ -1,5 +1,5 @@
 {
-    "name": "composer/packages",
+    "name": "wslibs/packages",
     "description": "composer包管理",
     "authors": [
         {
@@ -8,10 +8,11 @@
         }
     ],
     "require": {
+        "epii/admin-center": ">=0.0.1"
     },
     "autoload": {
         "psr-4": {
-            "composer\\packages\\": "./"
+            "composer\\packages\\": "./src"
         }
     },
     "extra": {
