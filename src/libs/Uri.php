@@ -6,7 +6,7 @@
  * Time: 15:45
  */
 
-namespace composer\packages\libs;
+namespace wslibs\composer_package\libs;
 
 
 class Uri

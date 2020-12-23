@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: Adminstrator
@@ -6,12 +7,12 @@
  * Time: 17:08
  */
 
-namespace composer\packages\app\service;
+namespace wslibs\composer_package\libs;
 
 
 use epii\orm\Db;
 
-class ProjectGroupService
+class ProjectGroup
 {
     /**
      * 获取下拉列表
@@ -20,9 +21,14 @@ class ProjectGroupService
      * @throws \think\db\exception\DbException
      * @throws \think\db\exception\ModelNotFoundException
      */
-    public static function getOptions()
+    public static function getOptions($where = [], $unshfitArray = null)
     {
-        $projectGroups = Db::name('project_group')->field('id,project_group_name as name')->select();
+        $projectGroups = Db::name('project_group')->where($where)->field('id,project_group_name as name')->select();
+
+        if ($unshfitArray !== null) {
+            array_unshift($projectGroups, $unshfitArray);
+        }
         return $projectGroups;
     }
+
 }

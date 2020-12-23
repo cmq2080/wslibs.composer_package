@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: Adminstrator
@@ -6,39 +7,29 @@
  * Time: 15:19
  */
 
-namespace composer\packages\app\admin;
+namespace wslibs\composer_package\app\admin;
 
-
-use composer\packages\app\service\ProjectGroupService;
-use composer\packages\app\service\ProjectService;
-use composer\packages\app\service\SourceService;
-use composer\packages\app\service\VersionService;
-use composer\packages\libs\Constant;
-use epii\admin\center\admin_center_addons_controller;
-use epii\admin\ui\lib\epiiadmin\jscmd\Alert;
-use epii\admin\ui\lib\epiiadmin\jscmd\JsCmd;
+use wslibs\composer_package\libs\ProjectGroup;
+use wslibs\composer_package\libs\Project as libProject;
+use wslibs\composer_package\libs\Constant;
 use epii\orm\Db;
 use epii\server\Args;
 use think\db\Expression;
 
-class project extends admin_center_addons_controller
+class project extends base
 {
     /**
      * 首页
      */
     public function index()
     {
-
         try {
-            $projectGroups = ProjectGroupService::getOptions();
-            array_unshift($projectGroups, ['id' => 0, 'name' => '请选择项目组']);
+            $projectGroups = ProjectGroup::getOptions([], ['id' => 0, 'name' => '请选择项目组']);
 
             $this->assign('projectGroups', $projectGroups); // 只认id和name，算你狠
-            $this->assign('addons', Constant::ADDONS);
             $this->adminUiDisplay();
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -69,8 +60,7 @@ class project extends admin_center_addons_controller
                 return $data;
             });
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -81,20 +71,14 @@ class project extends admin_center_addons_controller
     public function add()
     {
         try {
+            $projectId = Args::params('project_id/d', 0);
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $source = trim(Args::params('source/d/1'));
-                $projectGroupId = trim(Args::params("project_group_id/d/1"));
-                $projectRepoName = trim(Args::params("project_repo_name/1"));
-                $versionName = trim(Args::params("version_name/1"));
+                $source = trim(Args::params('source/d', '请选择项目来源'));
+                $projectGroupId = trim(Args::params("project_group_id/d/1", '请选择所属项目组'));
+                $projectRepoName = trim(Args::params("project_repo_name")); // 项目仓库名是跟在版本表里的
+                $versionName = trim(Args::params("version_name"));
 
-                if (!$source) {
-                    throw new \Exception('请选择项目来源');
-                }
-                if (!$projectGroupId) {
-                    throw new \Exception('请选择所属项目组');
-                }
-
-                $versionInfo = ProjectService::getVersionInfoFromApi($projectRepoName, $versionName);
+                $versionInfo = libProject::getVersionInfoFromApi($projectRepoName, $versionName); // 内有项目名称
                 if (!$versionInfo) {
                     throw new \Exception('获取项目信息失败');
                 }
@@ -102,129 +86,142 @@ class project extends admin_center_addons_controller
 
                 /***********事务开始***********/
                 Db::startTrans();
+
+                // 构建插入数组
+                $insertData = [
+                    'project_name' => $versionInfo['name'],
+                    'project_url' => $versionInfo['website'] ?? '',
+                    'project_group_id' => $projectGroupId,
+                ];
+
                 // 添加or更新
-                $project = Db::name('project')->where('project_name', $versionInfo['name'])->find();
-                $text = '';
-                if (!$project) { // 没有找到？那就添加项目吧
-                    $insertData = [
-                        'project_name' => $versionInfo['name'],
-                        'project_url' => $versionInfo['website'] ?? '',
-                        'project_group_id' => $projectGroupId,
-                        'create_time' => $timestamp,
-                        'update_time' => $timestamp,
-                    ];
-                    $projectId = Db::name('project')->insert($insertData, false, true);
-                } else {
-                    $projectId = $project['id'];
-                    $text .= '合并导入' . $project['project_name'] . '项目';
-                }
+                if ($projectId) { // 更新
+                    $insertData = array_filter($insertData);
+                    $insertData['update_time'] = $timestamp;
+                    $res = Db::name(Constant::TABLE_PROJECT)->where('id', $projectId)->update($insertData);
 
-                if (!$projectId) {
-                    db::rollback();
-                    throw new \Exception('添加失败#1');
-                }
-
-                if ($versionName) { // 如果填了最初版本，则还得添加最初版本
-                    if (VersionService::exists(['project_id' => $projectId, 'version_name' => $versionName])) {
-                        throw new \Exception('项目' . $project['project_name'] . ':' . $versionName . '版本已存在');
+                    if (!$res) {
+                        throw new \Exception('更新失败');
+                    }
+                } else { // 添加
+                    // 第二次机会，通过repo_name来找项目
+                    $projectId = Db::name(Constant::TABLE_PROJECT)->where('project_name', $versionInfo['name'])->value('id');
+                    if (!$projectId) { // 实在找不到
+                        $insertData['create_time'] = $timestamp;
+                        $insertData['update_time'] = $timestamp;
+                        $projectId = Db::name(Constant::TABLE_PROJECT)->insert($insertData, false, true);
                     }
 
-                    $insertData = [
-                        'source' => $source,
-                        'version_name' => $versionName,
-                        'project_id' => $projectId,
-                        'repo_name' => $projectRepoName,
-                        'version_url' => $versionInfo['dist']['url'] ?? '',
-                        'version_json' => json_encode($versionInfo, JSON_UNESCAPED_UNICODE),
-                        'create_time' => time(),
-                        'update_time' => time(),
-                    ];
-                    $res = Db::name('version')->insert($insertData);
-                    if (!$res) {
-                        db::rollback();
-                        $cmd = Alert::make()->icon('5')->msg('添加失败#2')->onOk(null);
-                        return JsCmd::make()->addCmd($cmd)->run();
+                    if (!$projectId) {
+                        throw new \Exception('添加失败');
+                    }
+
+                    if ($versionName) { // 如果填了起始版本，则还得添加起始版本（光建了项目本身还不算）
+                        $insertData2 = [
+                            'source' => $source,
+                            'version_name' => $versionName,
+                            'project_id' => $projectId,
+                            'repo_name' => $projectRepoName,
+                            'version_url' => $versionInfo['dist']['url'] ?? '',
+                            'version_json' => json_encode($versionInfo, JSON_UNESCAPED_UNICODE),
+                            'create_time' => $timestamp,
+                            'update_time' => $timestamp,
+                        ];
+
+                        // 还得验证存不存在，已经存在了就很难受
+                        $versionId = Db::name(Constant::TABLE_VERSION)->where('project_id', $projectId)->where('version_name', $versionName)->value('id');
+                        if ($versionId) {
+                            throw new \Exception('项目' . $versionInfo['name'] . ':' . $versionName . '版本已存在');
+                        } else {
+                            $versionId = Db::name(Constant::TABLE_VERSION)->insert($insertData2);
+                        }
+
+                        if (!$versionId) {
+                            throw new \Exception('添加起始版本失败');
+                        }
                     }
                 }
 
                 Db::commit();
                 /***********事务结束***********/
 
-                ProjectService::autoMake();
-
-                return JsCmd::alertCloseRefresh($text . "成功");
+                $this->success('操作成功');
             } else {
-                $projectGroups = ProjectGroupService::getOptions();
-//            array_unshift($projectGroups, ['id' => 0, 'name' => '请选择所属项目组']); // 已经有啦
-                $sources = SourceService::getOptions();
+                if ($projectId) {
+                    $project = Db::name(Constant::TABLE_PROJECT)->where('id', $projectId)->find();
+                    $this->assign('project', $project);
+                }
 
+                $projectGroups = ProjectGroup::getOptions();
                 $this->assign('projectGroups', $projectGroups); // 只认id和name，算你狠
-                $this->assign('sources', $sources);
-                $this->assign('addons', Constant::ADDONS);
+                //            array_unshift($projectGroups, ['id' => 0, 'name' => '请选择所属项目组']); // 已经有啦
+                $sourceOptions = libProject::getSourceOptions();
+                $this->assign('sourceOptions', $sourceOptions);
+
                 $this->adminUiDisplay();
             }
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            Db::rollback();
+            $this->error($e->getMessage());
         }
     }
 
-    /**
-     * 修改项目
-     * @return array|false|string
-     */
-    public function edit()
-    {
-        try {
-            $id = trim(Args::params("id/d"));
-            $project = Db::name('project')->where('id', $id)->find();
-            if (!$project) {
-                throw new \Exception('没有找到该项目');
-            }
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $id = trim(Args::params("id/d"));
-//                $projectRepoName = trim(Args::params("project_repo_name/1"));
-//                $projectUrl = trim(Args::params("project_url/1"));
-                $projectGroupId = trim(Args::params("project_group_id/d"));
+    // /**
+    //  * 修改项目
+    //  * @return array|false|string
+    //  */
+    // public function edit()
+    // {
+    //     try {
+    //         $id = trim(Args::params("id/d"));
+    //         $project = Db::name('project')->where('id', $id)->find();
+    //         if (!$project) {
+    //             throw new \Exception('没有找到该项目');
+    //         }
+    //         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    //             $id = trim(Args::params("id/d"));
+    //             //                $projectRepoName = trim(Args::params("project_repo_name/1"));
+    //             //                $projectUrl = trim(Args::params("project_url/1"));
+    //             $projectGroupId = trim(Args::params("project_group_id/d"));
 
-                if (!$projectGroupId) {
-                    throw new \Exception('请选择所属项目组');
-                }
+    //             if (!$projectGroupId) {
+    //                 throw new \Exception('请选择所属项目组');
+    //             }
 
-                /***********事务开始***********/
-                Db::startTrans();
-                $updateData = [
-                    'project_group_id' => $projectGroupId,
-                    'update_time' => time(),
-                ];
-                $res = Db::name('project')->where('id', $id)->update($updateData, false, true);
-                if (!$res) {
-                    db::rollback();
-                    throw new \Exception('修改失败#1');
-                }
+    //             /***********事务开始***********/
+    //             Db::startTrans();
+    //             $updateData = [
+    //                 'project_group_id' => $projectGroupId,
+    //                 'update_time' => time(),
+    //             ];
+    //             $res = Db::name('project')->where('id', $id)->update($updateData, false, true);
+    //             if (!$res) {
+    //                 db::rollback();
+    //                 throw new \Exception('修改失败#1');
+    //             }
 
-                Db::commit();
-                /***********事务结束***********/
+    //             Db::commit();
+    //             /***********事务结束***********/
 
-                ProjectService::autoMake();
+    //             ProjectService::autoMake();
 
-                return JsCmd::alertCloseRefresh("成功");
-            } else {
-                $this->assign('project', $project);
+    //             return JsCmd::alertCloseRefresh("成功");
+    //         } else {
+    //             $this->assign('project', $project);
 
-                $projectGroups = ProjectGroupService::getOptions();
-//            array_unshift($projectGroups, ['id' => 0, 'name' => '请选择所属项目组']); // 已经有啦
+    //             $projectGroups = ProjectGroupService::getOptions();
+    //             //            array_unshift($projectGroups, ['id' => 0, 'name' => '请选择所属项目组']); // 已经有啦
 
-                $this->assign('projectGroups', $projectGroups); // 只认id和name，算你狠
+    //             $this->assign('projectGroups', $projectGroups); // 只认id和name，算你狠
 
-                $this->assign('addons', Constant::ADDONS);
-                $this->adminUiDisplay('admin/project/add');
-            }
-        } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
-        }
-    }
+    //             $this->assign('addons', Constant::ADDONS);
+    //             $this->adminUiDisplay('admin/project/add');
+    //         }
+    //     } catch (\Exception $e) {
+    //         $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
+    //         return JsCmd::make()->addCmd($cmd)->run();
+    //     }
+    // }
 
     public function delete()
     {
@@ -233,50 +230,48 @@ class project extends admin_center_addons_controller
 
             $res = Db::name('project')->where('id', $id)->delete();
             if (!$res) {
-                $cmd = Alert::make()->icon('5')->msg('删除失败#1')->onOk(null);
-                return JsCmd::make()->addCmd($cmd)->run();
+                throw new \Exception('删除失败');
             }
 
-            ProjectService::autoMake();
+            LibProject::autoMake();
 
-            return JsCmd::alertRefresh("成功");
+            $this->success('成功');
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
-//    public function getVersionInfo($projectRepoName, $versionName)
-//    {
-//        // 没有再访问接口
-//        $params = [
-//            'app' => 'composer',
-//            'repo' => $projectRepoName,
-//            'git_origin' => '1',
-//            'version' => $versionName,
-//        ];
-//        $url = \app\index\project::BASE_URL . '?' . http_build_query($params);
-//        $res = json_decode(file_get_contents($url), true);
-//        if ($res['code'] != 1) {
-//            return null;
-//        }
-//        if (!isset($res['data']['name'])) {
-//            return null;
-//        }
-//
-//        return $res['data'];
-//    }
-//
-//    public function autoMake()
-//    {
-//        try {
-//            ProjectService::autoMake();
-//
-//            return JsCmd::alert("生成成功");
-//        } catch (\Exception $e) {
-//            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-//            return JsCmd::make()->addCmd($cmd)->run();
-//        }
-//    }
+    //    public function getVersionInfo($projectRepoName, $versionName)
+    //    {
+    //        // 没有再访问接口
+    //        $params = [
+    //            'app' => 'composer',
+    //            'repo' => $projectRepoName,
+    //            'git_origin' => '1',
+    //            'version' => $versionName,
+    //        ];
+    //        $url = \app\index\project::BASE_URL . '?' . http_build_query($params);
+    //        $res = json_decode(file_get_contents($url), true);
+    //        if ($res['code'] != 1) {
+    //            return null;
+    //        }
+    //        if (!isset($res['data']['name'])) {
+    //            return null;
+    //        }
+    //
+    //        return $res['data'];
+    //    }
+    //
+    //    public function autoMake()
+    //    {
+    //        try {
+    //            ProjectService::autoMake();
+    //
+    //            return JsCmd::alert("生成成功");
+    //        } catch (\Exception $e) {
+    //            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
+    //            return JsCmd::make()->addCmd($cmd)->run();
+    //        }
+    //    }
 
 }

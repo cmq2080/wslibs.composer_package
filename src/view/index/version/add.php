@@ -1,4 +1,4 @@
-<form role="form" class="epii" method="post" data-form="1" action="{url index\\version add}&__addons={$addons}">
+<form role="form" class="epii" method="post" data-form="1" action="">
     <div class="form-group">
         <label>项目来源：</label>
         <select class="selectpicker" id="class" name="source">

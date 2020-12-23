@@ -1,5 +1,5 @@
 {
-    "name": "wslibs/packages",
+    "name": "wslibs/composer_package",
     "description": "composer包管理",
     "authors": [
         {
@@ -12,15 +12,15 @@
     },
     "autoload": {
         "psr-4": {
-            "composer\\packages\\": "./src"
+            "wslibs\\composer_package\\": "./src"
         }
     },
     "extra": {
         "epii_admin_addons": {
-            "app": "composer\\packages\\App",
-            "title": "composer包管理",
+            "app": "wslibs\\composer_package\\App",
+            "title": "文始composer包管理",
             "version": "0.0.1",
-            "base_name_space": "composer\\packages\\app"
+            "base_name_space": "wslibs\\composer_package\\app"
         }
     }
 }
