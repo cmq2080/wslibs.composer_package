@@ -1,6 +1,7 @@
 {
     "name": "wslibs/composer_package",
     "description": "composer包管理",
+    "version": "0.0.2",
     "authors": [
         {
             "name": "陈庙琴",
@@ -19,7 +20,7 @@
         "epii_admin_addons": {
             "app": "wslibs\\composer_package\\App",
             "title": "文始composer包管理",
-            "version": "0.0.1",
+            "version": "0.0.2",
             "base_name_space": "wslibs\\composer_package\\app"
         }
     }
