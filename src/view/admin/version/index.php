@@ -37,10 +37,10 @@
 
 <div class="content">
     <div class="card-body table-responsive" style="padding-top: 0px">
-        <a class="btn btn-outline-primary btn-table-tool btn-dialog" href="{url admin\\version add}&project_id={$project.id}&__addons={$addons}" data-area="30%,50%" title="新增版本">新增版本</a>
+        <a class="btn btn-outline-primary btn-table-tool btn-dialog" href="{url admin\\version add}&project_id={$project.id}&__addons={$__addons}" data-area="30%,50%" title="新增版本">新增版本</a>
     </div>
     <div class="card-body table-responsive" style="padding-top: 0px">
-        <table data-table="1" data-url="{url admin\\version ajax_data}&project_id={$project.id}&__addons={$addons}" id="table1" class="table table-hover">
+        <table data-table="1" data-url="{url admin\\version ajax_data}&project_id={$project.id}&__addons={$__addons}" id="table1" class="table table-hover">
             <thead>
             <tr>
 
@@ -52,10 +52,10 @@
                 <th data-field="update_time" data-formatter="epiiFormatter">更新时间</th>
                 <th data-formatter="epiiFormatter.btns"
                     data-btns="download,del"
-                    data-edit-url="{url admin\\version edit }&id={id}&__addons={$addons}"
-                    data-edit-title="编辑：{name}"
-                    data-del-url="{url admin\\version delete }&id={id}&__addons={$addons}"
-                    data-del-title="删除：{name}"
+                    data-edit-url="{url admin\\version edit }&version_id={id}&__addons={$__addons}"
+                    data-edit-title="编辑：{version_name}"
+                    data-del-url="{url admin\\version delete }&version_id={id}&__addons={$__addons}"
+                    data-del-title="删除：{version_name}"
                     data-area="30%,50%"
                 >操作
                 </th>

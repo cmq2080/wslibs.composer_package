@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: Adminstrator
@@ -6,46 +7,40 @@
  * Time: 16:24
  */
 
-namespace composer\packages\app\admin;
+namespace wslibs\composer_package\app\admin;
 
-
-use composer\packages\libs\Constant;
-use epii\admin\center\admin_center_addons_controller;
-use epii\admin\ui\lib\epiiadmin\jscmd\Alert;
-use epii\admin\ui\lib\epiiadmin\jscmd\JsCmd;
+use wslibs\composer_package\libs\Constant;
 use epii\orm\Db;
 use epii\server\Args;
-use think\db\Expression;
 
-class project_group extends admin_center_addons_controller
+class project_group extends base
 {
     public function index()
     {
         try {
-            $this->assign('addons', Constant::ADDONS);
             $this->adminUiDisplay();
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
     public function ajax_data()
     {
         try {
-            $where = [
-                'project_group_name' => ($projectGroupName = Args::params('project_group_name')) ? new Expression('like "%' . $projectGroupName . '%"') : null
-            ];
-            $where = array_filter($where);
+            $where = [];
+            if ($projectGroupName = Args::params('project_group_name')) {
+                $where[] = [
+                    'project_group_name', 'like', '%' . $projectGroupName . '%'
+                ];
+            }
 
-            return $this->tableJsonData('project_group', $where, function ($data) {
-                $data['create_time'] = date('Y-m-d H:i:s', $data['create_time']);
-                $data['update_time'] = date('Y-m-d H:i:s', $data['update_time']);
-                return $data;
+            return $this->tableJsonData('project_group', $where, function ($row) {
+                $row['create_time'] = ($row['create_time'] ? date('Y-m-d H:i:s', $row['create_time']) : '-');
+                $row['update_time'] = ($row['update_time'] ? date('Y-m-d H:i:s', $row['update_time']) : '-');
+                return $row;
             });
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -56,70 +51,40 @@ class project_group extends admin_center_addons_controller
     public function add()
     {
         try {
+            $projectGroupId = Args::params('project_group_id/d');
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $projectGroupName = Args::params('project_group_name/1');
                 $timestamp = time();
 
                 $insertData = [
                     'project_group_name' => $projectGroupName,
-                    'create_time' => $timestamp,
-                    'update_time' => $timestamp,
                 ];
 
-                $res = Db::name('project_group')->insert($insertData);
-                if (!$res) {
-                    $cmd = Alert::make()->icon('5')->msg('添加失败')->onOk(null);
-                    return JsCmd::make()->addCmd($cmd)->run();
+                if ($projectGroupId) { // 修改
+                    $insertData['update_time'] = $timestamp;
+                    $res = Db::name(Constant::TABLE_PROJECT_GROUP)->where('id', $projectGroupId)->update($insertData);
+                    if (!$res) {
+                        throw new \Exception('新增失败');
+                    }
+                } else { // 添加
+                    $insertData['create_time'] = $timestamp;
+                    $res = Db::name(Constant::TABLE_PROJECT_GROUP)->insert($insertData, false, true);
+                    if (!$res) {
+                        throw new \Exception('添加失败');
+                    }
                 }
 
-                return JsCmd::alertCloseRefresh('成功');
+                $this->success();
             } else {
-                $this->assign('addons', Constant::ADDONS);
+                if ($projectGroupId) {
+                    $projectGroup = Db::name('project_group')->where('id', $projectGroupId)->find();
+                    $this->assign('projectGroup', $projectGroup);
+                }
+
                 $this->adminUiDisplay();
             }
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
-        }
-    }
-
-    /**
-     * 修改
-     */
-    public function edit()
-    {
-        try {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $id = Args::params('id/1');
-                $projectGroupName = Args::params('project_group_name/1');
-
-                $updateData = [
-                    'project_group_name' => $projectGroupName,
-                    'update_time' => time()
-                ];
-
-                $res = Db::name('project_group')->where('id', $id)->update($updateData);
-                if (!$res) {
-                    $cmd = Alert::make()->icon('5')->msg('修改失败')->onOk(null);
-                    return JsCmd::make()->addCmd($cmd)->run();
-                }
-
-                return JsCmd::alertCloseRefresh('成功');
-            } else {
-                $id = Args::params('id/1');
-                $projectGroup = Db::name('project_group')->where('id', $id)->find();
-                if (!$projectGroup) {
-                    $cmd = Alert::make()->icon('5')->msg('项目组不存在')->onOk(null);
-                    return JsCmd::make()->addCmd($cmd)->run();
-                }
-                $this->assign('projectGroup', $projectGroup);
-
-                $this->assign('addons', Constant::ADDONS);
-                $this->adminUiDisplay('admin/project_group/add');
-            }
-        } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -129,18 +94,16 @@ class project_group extends admin_center_addons_controller
     public function delete()
     {
         try {
-            $id = Args::params('id/1');
+            $id = Args::params('project_group_id/d/1');
 
-            $res = Db::name('project_group')->where('id', $id)->delete();
+            $res = Db::name(Constant::TABLE_PROJECT_GROUP)->where('id', $id)->delete();
             if (!$res) {
-                $cmd = Alert::make()->icon('5')->msg('删除失败#1')->onOk(null);
-                return JsCmd::make()->addCmd($cmd)->run();
+                throw new \Exception('删除失败');
             }
 
-            return JsCmd::alertRefresh("成功");
+            $this->success('删除成功', 'refresh');
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 }

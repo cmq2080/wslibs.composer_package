@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Created by PhpStorm.
  * User: Adminstrator
@@ -6,20 +7,16 @@
  * Time: 17:52
  */
 
-namespace composer\packages\app\admin;
+namespace wslibs\composer_package\app\admin;
 
-use composer\packages\app\service\ProjectGroupService;
-use composer\packages\app\service\ProjectService;
-use composer\packages\app\service\SourceService;
-use composer\packages\app\service\VersionService;
-use composer\packages\libs\Constant;
-use epii\admin\center\admin_center_addons_controller;
-use epii\admin\ui\lib\epiiadmin\jscmd\Alert;
-use epii\admin\ui\lib\epiiadmin\jscmd\JsCmd;
+use wslibs\composer_package\libs\Constant;
+use wslibs\composer_package\libs\Project;
+use wslibs\composer_package\libs\ProjectGroup;
+use wslibs\composer_package\libs\Version as LibVersion;
 use epii\orm\Db;
 use epii\server\Args;
 
-class version extends admin_center_addons_controller
+class version extends base
 {
     /**
      * 首页
@@ -28,16 +25,14 @@ class version extends admin_center_addons_controller
     {
         try {
             $projectId = Args::params("project_id/1/d");
-            $project = Db::name('project')->where('id', $projectId)->find();
+            $project = Db::name(Constant::TABLE_PROJECT)->where('id', $projectId)->find();
             if (!$project) {
-                exit('项目未找到');
+                throw new \Exception('项目未找到');
             }
             $this->assign('project', $project);
-            $this->assign('addons', Constant::ADDONS);
             $this->adminUiDisplay();
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -49,15 +44,17 @@ class version extends admin_center_addons_controller
     {
         try {
             $projectId = Args::params("project_id/1/d");
-            return $this->tableJsonData('version', ['project_id' => $projectId], function ($data) {
-                $data['source'] = SourceService::getDesc($data['source']);
+            $where = [
+                ['project_id', '=', $projectId]
+            ];
+            return $this->tableJsonData(Constant::TABLE_VERSION, $where, function ($data) {
+                $data['source'] = Project::getSourceDesc($data['source']);
                 $data['create_time'] = date('Y-m-d H:i:s', $data['create_time']);
                 $data['update_time'] = date('Y-m-d H:i:s', $data['update_time']);
                 return $data;
             });
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -67,29 +64,29 @@ class version extends admin_center_addons_controller
     public function add()
     {
         try {
+            $projectId = Args::params("project_id/1/d");
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $source = Args::params("source/1/d");
                 $versionName = Args::params("version_name/1");
                 $repoName = Args::params('repo_name/1');
-                $projectId = Args::params("project_id/1/d");
                 $timestamp = time();
 
-                $project = Db::name('project')->where('id', $projectId)->find();
+                $project = Db::name(Constant::TABLE_PROJECT)->where('id', $projectId)->find();
                 if (!$project) {
                     throw new \Exception('项目未找到');
                 }
 
-                $versionInfo = ProjectService::getVersionInfoFromApi($repoName, $versionName);
+                $versionInfo = Project::getVersionInfoFromApi($repoName, $versionName);
                 if (!$versionInfo) {
                     throw new \Exception('获取项目信息失败');
                 }
 
-                if ($project['project_name'] != $versionInfo['name']) {
-                    throw new \Exception('仓库名称与之前不符');
+                if ($project['project_name'] !== $versionInfo['name']) {
+                    throw new \Exception('项目名称与之前不符');
                 }
 
-                if (VersionService::exists(['project_id' => $projectId, 'version_name' => $versionName])) {
-                    throw new \Exception('版本已存在');
+                if (LibVersion::exists(['project_id' => $projectId, 'version_name' => $versionName])) {
+                    throw new \Exception('该版本已存在');
                 }
 
                 $insertData = [
@@ -102,26 +99,21 @@ class version extends admin_center_addons_controller
                     'create_time' => $timestamp,
                     'update_time' => $timestamp
                 ];
-                $res = Db::name('version')->insert($insertData);
+                $res = Db::name(Constant::TABLE_VERSION)->insert($insertData);
                 if (!$res) {
-                    $cmd = Alert::make()->icon('5')->msg('添加失败#1')->onOk(null);
-                    return JsCmd::make()->addCmd($cmd)->run();
+                    throw new \Exception('添加失败');
                 }
 
-                ProjectService::autoMake();
-
-                return JsCmd::alertCloseRefresh("成功");
+                $this->success('添加成功');
             } else {
-                $projectId = Args::params("project_id/1/d");
-                $project = Db::name('project')->where('id', $projectId)->find();
+                $project = Db::name(Constant::TABLE_PROJECT)->where('id', $projectId)->find();
                 if (!$project) {
-                    exit('项目未找到');
+                    throw new \Exception('项目未找到');
                 }
-                $sources = SourceService::getOptions();
-                $projectGroups = ProjectGroupService::getOptions();
-                $lastVersion = VersionService::getLastVersion($projectId);
+                $sources = Project::getSourceOptions();
+                $projectGroups = ProjectGroup::getOptions();
+                $lastVersion = Project::getLastVersion($projectId);
                 $source = $lastVersion['source'] ?? '';
-//                $source = versionService::getLastSource($projectId);
                 $repoName = $lastVersion['repo_name'] ?? '';
 
                 $this->assign('project', $project);
@@ -129,13 +121,11 @@ class version extends admin_center_addons_controller
                 $this->assign('sources', $sources);
                 $this->assign('source', $source);
                 $this->assign('repoName', $repoName);
-                $this->assign('versionName', VersionService::getNewVersionName($project['id']));
-                $this->assign('addons', Constant::ADDONS);
+                $this->assign('versionName', LibVersion::getNewVersionName($lastVersion['version_name']));
                 $this->adminUiDisplay();
             }
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 
@@ -145,20 +135,18 @@ class version extends admin_center_addons_controller
     public function delete()
     {
         try {
-            $id = Args::params('id/1');
+            $versionId = Args::params('version_id/1');
 
-            $res = Db::name('version')->where('id', $id)->delete();
+            $res = Db::name(Constant::TABLE_VERSION)->where('id', $versionId)->delete();
             if (!$res) {
-                $cmd = Alert::make()->icon('5')->msg('删除失败#1')->onOk(null);
-                return JsCmd::make()->addCmd($cmd)->run();
+                throw new \Exception('删除失败');
             }
 
-            ProjectService::autoMake();
+            Project::autoMake();
 
-            return JsCmd::alertRefresh("成功");
+            $this->success('成功', 'refresh');
         } catch (\Exception $e) {
-            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-            return JsCmd::make()->addCmd($cmd)->run();
+            $this->error($e->getMessage());
         }
     }
 }
