@@ -233,18 +233,19 @@ class Project
 
         // 访问接口
         $params = [
-            'r' => $repoName,
-            'v' => $versionName,
+            'repo' => $repoName,
+            'version' => $versionName,
+            'git_origin' => 1,
         ];
 
         $composerApiUrl = Settings::get(Constant::ADDONS . '.composer_api_url');
         $delimiter = strpos($composerApiUrl, '?') === false ? '?' : '&'; // 如果前面有参数，则用&给它续，否则，那就用？补了
         $url = $composerApiUrl . $delimiter . http_build_query($params);
         $res = json_decode(file_get_contents($url), true);
-        if (($res === null) || (isset($res['stat']) === false)) {
+        if (!$res) {
             throw new \Exception('请求API失败#-1');
         }
-        if ($res['stat']) { // 只有当stat为0时，才算成功
+        if (!$res['code']) { // 只有当stat为0时，才算成功
             throw new \Exception('请求API失败#-2');
         }
         if (isset($res['data']['name']) === false) {
@@ -252,6 +253,19 @@ class Project
         }
 
         return $res['data'];
+        /*$url = 'http://fayuan_installer:fyinstaller@git.wszx.cc:10101/raw/' . $repoName . '.git/' . $versionName . '/composer.json';
+        $data = json_decode(file_get_contents($url), true);
+        if (!$data) {
+            throw new \Exception('请求API失败#-1');
+        }
+
+        $data['dist'] = [
+            'type' => 'zip',
+            'url' => 'http://git.wszx.cc:10101/zip/?r=' . $repoName . '&h=' . $versionName . '&format=zip',
+        ];
+        $data['website'] = 'http://git.wszx.cc:10101/summary/' . $repoName;
+
+        return $data;*/
     }
 
     /**

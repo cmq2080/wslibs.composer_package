@@ -262,16 +262,14 @@ class project extends base
     //        return $res['data'];
     //    }
     //
-    //    public function autoMake()
-    //    {
-    //        try {
-    //            ProjectService::autoMake();
-    //
-    //            return JsCmd::alert("生成成功");
-    //        } catch (\Exception $e) {
-    //            $cmd = Alert::make()->icon('5')->msg($e->getMessage())->onOk(null);
-    //            return JsCmd::make()->addCmd($cmd)->run();
-    //        }
-    //    }
+    public function autoMake()
+    {
+        try {
+            libProject::autoMake();
 
+            $this->success("生成成功");
+        } catch (\Exception $e) {
+            $this->error($e->getMessage());
+        }
+    }
 }
