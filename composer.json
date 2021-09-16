@@ -8,19 +8,19 @@
             "email": "1421224516@qq.com"
         }
     ],
+    "license": "MIT",
     "require": {
         "epii/admin-center": ">=0.0.1"
     },
     "autoload": {
         "psr-4": {
-            "wslibs\\composer_package\\": "./src"
+            "wslibs\\composer_package\\": "src/"
         }
     },
     "extra": {
         "epii_admin_addons": {
             "app": "wslibs\\composer_package\\App",
             "title": "文始composer包管理",
-            "version": "0.0.1",
             "base_name_space": "wslibs\\composer_package\\app"
         }
     }
